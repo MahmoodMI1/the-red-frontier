@@ -1,4 +1,6 @@
 import torch
+import torch.nn as nn
+import torch.nn.functional as F
 import torchvision
 import torchvision.transforms as transforms
 from Hirise import HiRise
@@ -33,6 +35,20 @@ val_loader = torch.utils.data.DataLoader(val_dataset, batch_size,
 test_loader = torch.utils.data.DataLoader(test_dataset, batch_size,
                                             num_workers,shuffle=False)
 
+class ConvNet(nn.Module):
+    def __init__(self):
+        self.conv1 = nn.Conv2d(3,16,3)
+        self.pool1 = nn.MaxPool2d(2,2)
+        self.conv2 = nn.Conv2d(16,32,3)
+        self.fc1 = nn.Linear(32*56*56,256)
+        self.fc2 = nn.Linear(512,128)
+        self.fc3 = nn.Linear(128,8)
 
-
-
+    def forward(self,x):
+        x = self.pool(F.relu(self.conv1(x)))
+        x = self.pool(F.relu(self.conv2(x)))
+        x = x.view(-1,32*56*56)
+        x = F.relu(self.fc1(x))
+        x = F.relu(self.fc2(x))
+        x = self.fc3(x)
+        return x
