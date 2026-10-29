@@ -2,6 +2,13 @@ from torch.utils.data import Dataset, DataLoader
 from pathlib import Path
 from PIL import Image
 
+#root for the path
+#classes (num -> labels)
+
+#samples (im_name -> labels)
+#getitem (image -> labels)
+
+#transform (image ->)
 
 class HiRise(Dataset):
     def __init__(self, root, split="train", transform=None):
