@@ -5,6 +5,7 @@ import torchvision
 import torchvision.transforms as transforms
 from datetime import datetime
 from Hirise import HiRise
+import matplotlib.pyplot as plt
 device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 
 
@@ -48,7 +49,7 @@ class ConvNet(nn.Module):
 def main(): # main func
     # 80 10 10 split of data sets
     train_dataset = HiRise(root, split="train", transform=train_transformer)
-    val_dataset = HiRise(root,split="val")
+    val_dataset = HiRise(root,split="val", transform=eval_transformer)
     test_dataset = HiRise(root, split="test")
 
     # data loaders/ shuffle / workers
@@ -66,14 +67,18 @@ def main(): # main func
     num_epochs = 4
     total_steps = len(train_loader)
 
+    #loss tracker
+    lossi = []
+
     for epoch in range(num_epochs):
+        
         for i, (images, labels) in enumerate(train_loader):
             images = images.to(device)
             labels = labels.to(device)
 
             #forward pass
             x = model(images)
-            loss = criterion(x,labels)
+            loss = criterion(x,labels)  
 
             #backward pass
             for p in model.parameters():# parameters()
@@ -86,9 +91,41 @@ def main(): # main func
             if (i+1) % 2000 == 0:
                 print(f'Epoch [{epoch+1}/{num_epochs}], Step [{i+1}/{total_steps}], Loss: {loss.item():.4f}')
 
+            lossi.append(loss.log10().item())
+  
+
+
+
     print('Finished Training')
     #torch.save(model.state_dict(), f'./hirise_cnn_{datetime.now():%Y-%m-%d_%H-%Mwwwwwwwwww}.pth')
     torch.save(model.state_dict(), './hirise_cnn')
+
+    n = len(lossi) // 1000 * 1000 # drop leftover steps so it reshapes evenly
+    plt.plot(torch.tensor(lossi[:n]).view(-1,1000).mean(1))
+    plt.show()
+
+    
+    @torch.no_grad()
+    def split_loss(split):
+        model.eval()
+        x = {
+            'train': train_loader,
+            'val': val_loader,
+            'test':test_loader
+        } [split]
+
+        for images, labels in x:
+            images = images.to(device)
+            labels = labels.to(device)
+
+            x = model(images)
+            loss = criterion(x,labels)
+        print(split, loss.item())
+        #return loss.item()
+    
+    split_loss('train')
+    split_loss('val')   
+
 
 
 if __name__ == '__main__':
