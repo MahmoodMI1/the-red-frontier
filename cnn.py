@@ -8,13 +8,15 @@ from Hirise import HiRise
 import matplotlib.pyplot as plt
 device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 
-
+#q0: does batch_size 4 work and num_workers 4  
 # Tweakers
 batch_size = 4
 num_workers = 4
 
 # root of the data
 root = "data/hirise-map-proj-v3_2"
+
+#q1: what other transformers does this nn need
 
 # transformers for both train, and valuation
 train_transformer = transforms.Compose([
@@ -25,7 +27,7 @@ eval_transformer = transforms.Compose([
 ])
 
 
-
+#q2: does the linear layer recieve to many entries defeating the purpose?
 class ConvNet(nn.Module):
     def __init__(self):
         super(ConvNet, self).__init__()
@@ -45,8 +47,21 @@ class ConvNet(nn.Module):
         x = self.fc3(x)
         return x
 
+@torch.no_grad()
+def split_loss(split, model, loader, criterion):
+    model.eval()
+
+    for images, labels in loader:
+        images = images.to(device)
+        labels = labels.to(device)
+
+        x = model(images)
+        loss = criterion(x,labels)
+    print(split, loss.item())
+    #return loss.item()
 
 def main(): # main func
+
     # 80 10 10 split of data sets
     train_dataset = HiRise(root, split="train", transform=train_transformer)
     val_dataset = HiRise(root,split="val", transform=eval_transformer)
@@ -63,6 +78,7 @@ def main(): # main func
     model = ConvNet().to(device)
     criterion = nn.CrossEntropyLoss()
 
+    #q3: do we need a decreasing learning rate
     lr = 0.01
     num_epochs = 4
     total_steps = len(train_loader)
@@ -92,41 +108,22 @@ def main(): # main func
                 print(f'Epoch [{epoch+1}/{num_epochs}], Step [{i+1}/{total_steps}], Loss: {loss.item():.4f}')
 
             lossi.append(loss.log10().item())
-  
 
+        # per epoch check point
+        epoch_loss = torch.tensor(lossi[-total_steps:]).mean().item() # log10 scale
+        print(f'Epoch {epoch + 1}: train log loss {epoch_loss:.4f} (raw {10**epoch_loss:.4f})')
+        split_loss(split='train',model=model, loader=train_loader, criterion=criterion)
+        split_loss(split='val',model=model, loader=val_loader, criterion=criterion)
+        torch.save(model.state_dict(), f'checkpoints/cnn_epoch{epoch+1}.pth')
 
 
     print('Finished Training')
     #torch.save(model.state_dict(), f'./hirise_cnn_{datetime.now():%Y-%m-%d_%H-%Mwwwwwwwwww}.pth')
-    torch.save(model.state_dict(), './hirise_cnn')
+    
 
     n = len(lossi) // 1000 * 1000 # drop leftover steps so it reshapes evenly
     plt.plot(torch.tensor(lossi[:n]).view(-1,1000).mean(1))
     plt.show()
-
-    
-    @torch.no_grad()
-    def split_loss(split):
-        model.eval()
-        x = {
-            'train': train_loader,
-            'val': val_loader,
-            'test':test_loader
-        } [split]
-
-        for images, labels in x:
-            images = images.to(device)
-            labels = labels.to(device)
-
-            x = model(images)
-            loss = criterion(x,labels)
-        print(split, loss.item())
-        #return loss.item()
-    
-    split_loss('train')
-    split_loss('val')   
-
-
 
 if __name__ == '__main__':
     main()
