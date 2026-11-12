@@ -34,9 +34,9 @@ class ConvNet(nn.Module):
         self.conv1 = nn.Conv2d(3,16,3, padding=1) # padding included
         self.pool = nn.MaxPool2d(2,2)
         self.conv2 = nn.Conv2d(16,32,3, padding=1)
-        self.fc1 = nn.Linear(32*56*56,512)
-        self.fc2 = nn.Linear(512,128)
-        self.fc3 = nn.Linear(128,8)
+        self.fc1 = nn.Linear(32*56*56,128)
+        self.fc2 = nn.Linear(128,64)
+        self.fc3 = nn.Linear(64,8)
 
     def forward(self,x):
         x = self.pool(F.relu(self.conv1(x)))
@@ -50,6 +50,8 @@ class ConvNet(nn.Module):
 @torch.no_grad()
 def split_loss(split, model, loader, criterion):
     model.eval()
+    total_loss = 0.0
+    total_images = 0.0
 
     for images, labels in loader:
         images = images.to(device)
@@ -57,7 +59,14 @@ def split_loss(split, model, loader, criterion):
 
         x = model(images)
         loss = criterion(x,labels)
-    print(split, loss.item())
+
+        total_loss += loss.item() * labels.size(0)# since criterion = loss/batch_size we multiply by batch_size
+        total_images += labels.size(0)
+
+    model.train()
+    avg_loss = total_loss / total_images        
+    print(split, avg_loss)
+    return avg_loss
     #return loss.item()
 
 def main(): # main func
@@ -78,8 +87,11 @@ def main(): # main func
     model = ConvNet().to(device)
     criterion = nn.CrossEntropyLoss()
 
-    #q3: do we need a decreasing learning rate
-    lr = 0.01
+    # step decay, done by hand (same rule as torch.optim.lr_scheduler.StepLR):
+    # lr = lr_start * lr_decay ** (epoch // lr_step)
+    lr_start = 0.01
+    lr_decay = 0.1   # multiply lr by this...
+    lr_step = 2      # ...every lr_step epochs
     num_epochs = 4
     total_steps = len(train_loader)
 
@@ -87,7 +99,9 @@ def main(): # main func
     lossi = []
 
     for epoch in range(num_epochs):
-        
+        lr = lr_start * lr_decay ** (epoch // lr_step)
+        print(f'Epoch {epoch + 1}: lr {lr}')
+
         for i, (images, labels) in enumerate(train_loader):
             images = images.to(device)
             labels = labels.to(device)
@@ -100,6 +114,7 @@ def main(): # main func
             for p in model.parameters():# parameters()
                 p.grad = None
             loss.backward()
+
             
             for p in model.parameters():
                 p.data += -lr * p.grad
